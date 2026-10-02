@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nano Quiz Clash</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+:root{--bg:#0d1b2a;--card:#132a40;--ink:#eef4fb;--muted:#9fb3c8;--acc:#2ec4b6;--hot:#ff9f1c;--bad:#e5484d;--line:#1f3d5a}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(1200px 600px at 50% -10%,#18406a,var(--bg));color:var(--ink);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;min-height:100vh}
+.wrap{max-width:720px;margin:0 auto;padding:24px 16px 40px}
+h1{font-size:clamp(28px,6vw,44px);margin:6px 0 4px;letter-spacing:-.02em}h1 span{color:var(--acc)}
+.sub{color:var(--muted);margin:0 0 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px}
+input{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#0b2236;color:var(--ink);font:inherit;margin:6px 0 10px}
+button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:12px 16px;cursor:pointer;background:var(--acc);color:#04201d}
+button.sec{background:#21476b;color:var(--ink)}button:disabled{opacity:.5;cursor:default}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1}
+.code{font-size:44px;font-weight:800;letter-spacing:.2em;color:var(--hot);text-align:center;margin:6px 0}
+.players{display:flex;flex-wrap:wrap;gap:8px}.pl{background:#0b2236;border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:14px}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:520px){.opts{grid-template-columns:1fr}}
+.opt{background:#0b2236;color:var(--ink);border:2px solid var(--line);text-align:left;padding:14px;font-weight:500}
+.opt.pick{border-color:var(--hot)}.opt.right{border-color:var(--acc);background:#0f3b37}.opt.wrong{border-color:var(--bad)}
+.bar{height:8px;background:#0b2236;border-radius:99px;overflow:hidden;margin:8px 0 14px}.bar i{display:block;height:100%;background:var(--hot);transition:width .25s linear}
+.lb{list-style:none;padding:0;margin:0}.lb li{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)}
+.muted{color:var(--muted);font-size:14px}.hide{display:none}
+ol.rules{padding-left:20px;margin:6px 0}ol.rules li{margin:4px 0}
+.err{color:var(--bad);font-size:14px;min-height:20px}
+</style></head><body><div class="wrap">
+<h1>Nano <span>Quiz</span> Clash</h1>
+<p class="sub">A real-time science quiz for 2–8 players, each on their own phone or laptop.</p>
+
+<section id="home">
+ <div class="card"><b>How to play</b>
+  <ol class="rules">
+   <li>One person taps <b>Host a game</b> and shares the 4-letter room code.</li>
+   <li>Everyone else opens this page on their own device, enters the code and a nickname, and taps <b>Join</b>.</li>
+   <li>The host starts when 2–8 players are in. There are 8 multiple-choice questions on nanoscience and biotech, with 15 seconds each.</li>
+   <li>A correct answer scores 500 points, plus up to 500 bonus points for speed. A wrong answer or no answer scores 0. You can't change an answer once it's locked in.</li>
+   <li>After every question everyone sees the right answer and the leaderboard. The highest total after question 8 wins. Ties share the place.</li>
+  </ol></div>
+ <div class="card">
+  <label class="muted" for="nm">Your nickname</label><input id="nm" maxlength="14" placeholder="e.g. Silver Surfer">
+  <div class="row"><button id="hostBtn">Host a game</button></div>
+  <p class="muted" style="margin:14px 0 0">or join one</p>
+  <input id="cd" maxlength="4" placeholder="Room code" style="text-transform:uppercase">
+  <button class="sec" id="joinBtn" style="width:100%">Join</button>
+  <div class="err" id="err"></div>
+ </div>
+</section>
+
+<section id="lobby" class="hide"><div class="card">
+ <div class="muted" style="text-align:center">Room code</div><div class="code" id="codeShow"></div>
+ <p class="muted" style="text-align:center;margin-top:0">Share this code. Players join from this same page.</p>
+ <b>Players</b> <span class="muted" id="cnt"></span><div class="players" id="plist" style="margin-top:8px"></div>
+ <div style="margin-top:16px"><button id="startBtn" class="hide" style="width:100%">Start game</button><p class="muted" id="waitMsg">Waiting for the host to start…</p></div>
+</div></section>
+
+<section id="play" class="hide"><div class="card">
+ <div class="muted" id="qnum"></div><h2 id="qtext" style="margin:6px 0 4px;font-size:21px"></h2>
+ <div class="bar"><i id="timer"></i></div>
+ <div class="opts" id="opts"></div><p class="muted" id="status" style="margin:12px 0 0"></p>
+</div><div class="card"><b>Leaderboard</b><ul class="lb" id="lb"></ul></div></section>
+
+<section id="over" class="hide"><div class="card" style="text-align:center"><div class="muted">Final result</div><h2 id="winner" style="font-size:28px;margin:6px 0"></h2></div>
+<div class="card"><ul class="lb" id="lbFinal"></ul></div><button id="againBtn" class="hide" style="width:100%">Play again with this room</button></section>
+</div>
+<script>
+const Q=[
+["Roughly how big is a nanoparticle?","1–100 nanometres","1–100 micrometres","1–100 millimetres","About 1 metre",0],
+["In green synthesis, what usually reduces metal ions to nanoparticles?","Plant phytochemicals such as polyphenols","Sodium borohydride","Liquid nitrogen","UV laser light alone",0],
+["A UV-Vis peak near 420–450 nm usually points to which nanoparticles?","Silver","Gold","Zinc oxide","Iron oxide",0],
+["Which technique gives a particle's hydrodynamic size in solution?","Dynamic light scattering (DLS)","PCR","Gel electrophoresis","Flame photometry",0],
+["Advanced glycation end-products (AGEs) form when sugars react with…","Proteins","Pure water","Noble gases","Glass",0],
+["In a sandwich ELISA, what binds the antigen first?","The capture antibody","The substrate","The stop solution","The plate reader",0],
+["Why do nanoparticles react more than bulk material of the same mass?","Much larger surface area","They are always charged","They contain no atoms","They are heavier",0],
+["Gold nanoparticle solutions are often what colour?","Ruby red","Bright green","Pure white","Colourless",0]
+];
+const N=Q.length,T=15000,MAXP=8;
+const $=id=>document.getElementById(id),show=id=>["home","lobby","play","over"].forEach(s=>$(s).classList.toggle("hide",s!==id));
+let peer,isHost=false,conns=[],hostConn=null,me={id:null,name:""},st=null,myPick=null,tick=null;
+// shuffle options per question once (host decides; sent in state)
+function code(){const a="ABCDEFGHJKLMNPQRSTUVWXYZ";return [...Array(4)].map(()=>a[Math.random()*a.length|0]).join("")}
+function err(m){$("err").textContent=m||""}
+function nick(){const n=$("nm").value.trim();if(!n){err("Enter a nickname first.");return null}return n.slice(0,14)}
+// ---------- HOST ----------
+$("hostBtn").onclick=()=>{const n=nick();if(!n)return;err("Creating room…");isHost=true;me.name=n;const c=code();
+ peer=new Peer("nqc-"+c.toLowerCase()+"-v1");
+ peer.on("open",id=>{me.id=id;st={code:c,phase:"lobby",q:-1,players:{[id]:{name:n,score:0}},order:[],answers:{},deadline:0};show("lobby");$("startBtn").classList.remove("hide");$("waitMsg").classList.add("hide");push()});
+ peer.on("connection",cn=>{cn.on("open",()=>{});cn.on("data",m=>hostMsg(cn,m));cn.on("close",()=>{conns=conns.filter(x=>x!==cn);if(st.players[cn.peer]&&st.phase==="lobby"){delete st.players[cn.peer];push()}});});
+ peer.on("error",e=>{err(e.type==="unavailable-id"?"That code is busy, try again.":"Connection problem: "+e.type);isHost=false});
+};
+function hostMsg(cn,m){
+ if(m.t==="join"){if(st.phase!=="lobby"){cn.send({t:"deny",why:"Game already started."});return}
+  if(Object.keys(st.players).length>=MAXP){cn.send({t:"deny",why:"Room is full (8 players)."});return}
+  conns.push(cn);st.players[cn.peer]={name:String(m.name).slice(0,14),score:0};push()}
+ if(m.t==="ans")answer(cn.peer,m.i);
+}
+function answer(pid,i){if(st.phase!=="q"||st.answers[pid]!=null||!st.players[pid])return;
+ const left=Math.max(0,st.deadline-Date.now());st.answers[pid]={i,pts:i===st.correct?500+Math.round(500*left/T):0};
+ if(Object.keys(st.answers).length===Object.keys(st.players).length)reveal();else push()}
+function startQ(){st.q++;if(st.q>=N){st.phase="over";push();return}
+ const q=Q[st.q],idx=[1,2,3,4].sort(()=>Math.random()-.5);st.opts=idx.map(k=>q[k]);st.correct=idx.indexOf(1);
+ st.answers={};st.phase="q";st.deadline=Date.now()+T;push();clearTimeout(st._t);st._t=setTimeout(reveal,T+300)}
+function reveal(){if(st.phase!=="q")return;clearTimeout(st._t);
+ for(const[p,a]of Object.entries(st.answers))st.players[p].score+=a.pts;st.phase="reveal";push();setTimeout(startQ,5000)}
+function push(){const s=JSON.parse(JSON.stringify({...st,_t:undefined}));s.now=Date.now();conns.forEach(c=>c.open&&c.send({t:"state",s}));apply(s)}
+$("startBtn").onclick=()=>{if(Object.keys(st.players).length<2){alertBox("Need at least 2 players to start.");return}startQ()};
+$("againBtn").onclick=()=>{for(const p of Object.values(st.players))p.score=0;st.q=-1;startQ()};
+function alertBox(m){$("waitMsg").textContent=m;$("waitMsg").classList.remove("hide")}
+// ---------- PLAYER ----------
+$("joinBtn").onclick=()=>{const n=nick();if(!n)return;const c=$("cd").value.trim().toUpperCase();if(c.length!==4){err("Enter the 4-letter code.");return}
+ err("Joining…");me.name=n;peer=new Peer();
+ peer.on("open",id=>{me.id=id;hostConn=peer.connect("nqc-"+c.toLowerCase()+"-v1",{reliable:true});
+  const to=setTimeout(()=>err("No game found with that code."),8000);
+  hostConn.on("open",()=>{clearTimeout(to);hostConn.send({t:"join",name:n})});
+  hostConn.on("data",m=>{if(m.t==="state"){err("");m.s.skew=Date.now()-m.s.now;apply(m.s)}if(m.t==="deny")err(m.why)});
+  hostConn.on("close",()=>{err("Disconnected from the host.");show("home")});});
+ peer.on("error",e=>err(e.type==="peer-unavailable"?"No game found with that code.":"Connection problem: "+e.type));
+};
+// ---------- RENDER (both) ----------
+function apply(s){st=isHost?st:s;const S=isHost?st:s;
+ const ps=Object.entries(S.players).sort((a,b)=>b[1].score-a[1].score);
+ const lb=ps.map(([id,p])=>`<li><span>${esc(p.name)}${id===me.id?" (you)":""}</span><b>${p.score}</b></li>`).join("");
+ if(S.phase==="lobby"){show("lobby");$("codeShow").textContent=S.code;$("cnt").textContent=`(${ps.length}/${MAXP})`;$("plist").innerHTML=ps.map(([id,p])=>`<span class="pl">${esc(p.name)}${id===me.id?" (you)":""}</span>`).join("");return}
+ if(S.phase==="over"){show("over");const top=ps[0][1].score,w=ps.filter(x=>x[1].score===top).map(x=>esc(x[1].name));$("winner").innerHTML="🏆 "+w.join(" & ")+" win"+(w.length>1?"":"s");$("lbFinal").innerHTML=lb;$("againBtn").classList.toggle("hide",!isHost);return}
+ show("play");$("lb").innerHTML=lb;$("qnum").textContent=`Question ${S.q+1} of ${N}`;$("qtext").textContent=Q[S.q][0];
+ const mine=S.answers[me.id];if(S.phase==="q"&&mine==null&&myPick!==null&&myPick.q!==S.q)myPick=null;
+ $("opts").innerHTML=S.opts.map((o,i)=>{let c="opt";if(S.phase==="reveal"){if(i===S.correct)c+=" right";else if(mine&&mine.i===i)c+=" wrong"}else if((mine&&mine.i===i)||(myPick&&myPick.q===S.q&&myPick.i===i))c+=" pick";return `<button class="${c}" data-i="${i}" ${S.phase!=="q"||mine||(myPick&&myPick.q===S.q)?"disabled":""}>${esc(o)}</button>`}).join("");
+ [...$("opts").children].forEach(b=>b.onclick=()=>{const i=+b.dataset.i;myPick={q:S.q,i};if(isHost)answer(me.id,i);else hostConn.send({t:"ans",i});apply(S)});
+ const answered=Object.keys(S.answers).length,total=ps.length;
+ $("status").textContent=S.phase==="reveal"?(mine?(mine.pts?`Correct! +${mine.pts}`:"Not this time."):"Time ran out.")+" Next question in a moment…":`${answered}/${total} answered`;
+ clearInterval(tick);if(S.phase==="q"){const dl=S.deadline+(S.skew||0);const f=()=>{$("timer").style.width=Math.max(0,(dl-Date.now())/T*100)+"%"};f();tick=setInterval(f,200)}else $("timer").style.width="0%";
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+</script></body></html>
