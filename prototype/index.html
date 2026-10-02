@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GreenNano Request Builder</title>
+<style>
+:root{--bg:#f4f7f5;--card:#fff;--ink:#16211d;--muted:#5d6c66;--line:#dfe6e2;--acc:#15803d;--soft:#e8f4ec}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1512;--card:#151d19;--ink:#e6eee9;--muted:#9ab0a5;--line:#24302a;--soft:#17261e;--acc:#4ade80}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15.5px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 16px 48px}
+h1{margin:0 0 4px;font-size:clamp(22px,4vw,30px)}.sub{color:var(--muted);margin:0 0 20px}
+.grid{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;align-items:start}@media(max-width:820px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+fieldset{border:0;padding:0;margin:0 0 18px}legend{font-weight:700;margin-bottom:8px}
+.opts{display:flex;flex-wrap:wrap;gap:8px}
+.opts label{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px 12px;cursor:pointer}
+.opts input{accent-color:var(--acc)}.opts label:has(input:checked){border-color:var(--acc);background:var(--soft)}
+input[type=text],input[type=number],textarea,select{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sum h2{margin:0 0 10px;font-size:18px}.sum ul{padding-left:18px;margin:6px 0}.warn{background:#fff4e5;color:#7a4a00;border-radius:10px;padding:10px 12px;font-size:14px;margin:10px 0}
+@media (prefers-color-scheme:dark){.warn{background:#2b2111;color:#f5c97a}}
+.tag{display:inline-block;background:var(--soft);color:var(--acc);border-radius:999px;padding:2px 10px;font-size:13px;font-weight:600}
+button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:11px 14px;background:var(--acc);color:#fff;cursor:pointer;width:100%;margin-top:10px}
+pre{white-space:pre-wrap;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:13px;max-height:220px;overflow:auto}
+.muted{color:var(--muted);font-size:13.5px}
+</style></head><body><div class="wrap">
+<h1>GreenNano sample request builder</h1>
+<p class="sub">A working prototype for a campus lab that makes nanoparticles from plant extracts and tests them. Build a request, check it for gaps, and copy a ready-to-send summary.</p>
+<div class="grid">
+<form class="card" id="f" onsubmit="return false">
+ <fieldset><legend>1. Nanoparticle</legend><div class="opts">
+  <label><input type="radio" name="np" value="Silver (Ag)" checked>Silver (Ag)</label><label><input type="radio" name="np" value="Zinc oxide (ZnO)">Zinc oxide (ZnO)</label><label><input type="radio" name="np" value="Gold (Au)">Gold (Au)</label></div></fieldset>
+ <fieldset><legend>2. Plant extract</legend>
+  <div class="two"><select id="src"><option value="lab">Lab's standard extract</option><option value="client">I'll supply my own plant material</option></select><input type="text" id="plant" placeholder="Plant name (if your own)"></div></fieldset>
+ <fieldset><legend>3. Characterisation</legend><div class="opts">
+  <label><input type="checkbox" name="ch" value="UV-Vis" checked>UV-Vis</label><label><input type="checkbox" name="ch" value="FTIR">FTIR</label><label><input type="checkbox" name="ch" value="DLS / zeta potential">DLS / zeta</label><label><input type="checkbox" name="ch" value="XRD">XRD</label><label><input type="checkbox" name="ch" value="SEM / TEM">SEM / TEM</label></div>
+  <p class="muted">The prototype flags which instruments still need to be confirmed with partner facilities.</p></fieldset>
+ <fieldset><legend>4. Bioactivity assays</legend><div class="opts">
+  <label><input type="checkbox" name="as" value="Antimicrobial (zone of inhibition / MIC)">Antimicrobial</label><label><input type="checkbox" name="as" value="Anti-glycation (AGE inhibition)">Anti-glycation</label><label><input type="checkbox" name="as" value="Antidiabetic (α-amylase / α-glucosidase inhibition)">Antidiabetic</label><label><input type="checkbox" name="as" value="Antioxidant (DPPH)">Antioxidant</label></div></fieldset>
+ <fieldset><legend>5. About the request</legend>
+  <div class="two"><input type="number" id="n" min="1" max="20" value="1" aria-label="Number of batches"><select id="who"><option>PhD / postdoc researcher</option><option>Incubator startup</option><option>Company</option></select></div>
+  <textarea id="goal" rows="3" style="margin-top:10px" placeholder="What question should the results answer? e.g. Do Ag nanoparticles from neem extract inhibit E. coli at low doses?"></textarea></fieldset>
+</form>
+<div class="card sum" id="sum"></div>
+</div></div>
+<script>
+const PENDING=["XRD","SEM / TEM"];
+const $=s=>document.querySelector(s),all=n=>[...document.querySelectorAll(`[name=${n}]:checked`)].map(x=>x.value);
+function render(){
+ const np=$("input[name=np]:checked").value,ch=all("ch"),as=all("as"),n=+$("#n").value||1,src=$("#src").value,plant=$("#plant").value.trim(),goal=$("#goal").value.trim(),who=$("#who").value;
+ $("#plant").disabled=src!=="client";
+ const gaps=[];
+ if(!ch.length)gaps.push("Pick at least one characterisation method. UV-Vis is the minimum to confirm synthesis.");
+ if(!as.length)gaps.push("No bioassay selected. That's fine if you only need synthesis.");
+ if(src==="client"&&!plant)gaps.push("Name the plant you'll supply.");
+ if(!goal)gaps.push("Add the question the results should answer, so the lab picks sensible doses and controls.");
+ if(np.startsWith("Zinc")&&ch.includes("UV-Vis")&&!ch.includes("XRD"))gaps.push("For ZnO, UV-Vis alone is weak evidence. Consider adding XRD.");
+ const pend=ch.filter(c=>PENDING.includes(c));
+ const steps=1+ch.length+as.length;
+ const summary=`GreenNano sample request
+Requester: ${who}
+Nanoparticle: ${np} × ${n} batch${n>1?"es":""}
+Extract: ${src==="client"?(plant||"[plant to be named]")+" (client-supplied)":"Lab standard extract"}
+Characterisation: ${ch.join(", ")||"none"}
+Assays: ${as.join(", ")||"none"}
+Research question: ${goal||"[to add]"}
+Pricing and turnaround: to be confirmed by the lab (pilot phase)`;
+ $("#sum").innerHTML=`<h2>Your request</h2><span class="tag">${steps} work packages</span>
+ <ul><li><b>${np}</b>, ${n} batch${n>1?"es":""}</li><li>${ch.length} characterisation method${ch.length===1?"":"s"}</li><li>${as.length} bioassay${as.length===1?"":"s"}</li></ul>
+ ${pend.length?`<div class="warn">Instrument access still to be confirmed: ${pend.join(", ")}.</div>`:""}
+ ${gaps.length?`<div class="warn"><b>Before you send:</b><ul>${gaps.map(g=>`<li>${g}</li>`).join("")}</ul></div>`:`<p class="tag">Ready to send</p>`}
+ <pre id="txt">${summary.replace(/</g,"&lt;")}</pre><button id="cp">Copy request summary</button><p class="muted">Prototype only: nothing is submitted anywhere.</p>`;
+ $("#cp").onclick=()=>{navigator.clipboard?.writeText(summary).then(()=>{$("#cp").textContent="Copied ✓"}).catch(()=>{$("#cp").textContent="Select the text above to copy"})};
+}
+document.addEventListener("input",render);document.addEventListener("change",render);render();
+</script></body></html>
