@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>India CO₂ Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f6f8f7;--card:#fff;--ink:#14231f;--muted:#5b6b66;--line:#e1e7e4;--acc:#0f7c6c;--warm:#c9761c}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1715;--card:#16211e;--ink:#e6efec;--muted:#9db0aa;--line:#26342f}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:clamp(22px,3.4vw,32px);margin:0 0 6px;letter-spacing:-.01em}
+.q{color:var(--muted);margin:0 0 18px;max-width:760px}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:18px}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:6px 12px;border-radius:999px;cursor:pointer;font:inherit;font-size:14px}
+.chip[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:#fff}
+label.r{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--muted)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.kpi b{display:block;font-size:26px;letter-spacing:-.02em}.kpi span{color:var(--muted);font-size:13px}
+.grid{display:grid;grid-template-columns:1.4fr 1fr;gap:16px}@media(max-width:800px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+.card h2{font-size:16px;margin:0 0 2px}.card p{margin:0 0 10px;color:var(--muted);font-size:13px}
+.ins{margin-top:16px}.ins li{margin:6px 0}
+footer{margin-top:22px;color:var(--muted);font-size:12.5px}
+canvas{max-height:340px}
+</style></head><body><div class="wrap">
+<h1>Is India's carbon footprint catching up with the world?</h1>
+<p class="q">CO₂ emissions per person since 1990 for India, China, the US, the EU and the world average, plus what India's emissions come from. Pick countries and drag the year to explore.</p>
+<div class="controls" id="chips"></div>
+<label class="r">Year <input type="range" id="yr" min="1990" max="2024" value="2024"> <strong id="yrv">2024</strong></label>
+<div class="kpis" id="kpis" style="margin-top:14px"></div>
+<div class="grid">
+<div class="card"><h2>CO₂ per person (tonnes)</h2><p>Fossil fuels and industry, 1990–2024</p><canvas id="line" aria-label="Line chart of CO2 per person by country"></canvas></div>
+<div class="card"><h2>India's emissions by source</h2><p id="srcy">Million tonnes CO₂</p><canvas id="bar" aria-label="Bar chart of India's CO2 by source"></canvas></div>
+</div>
+<div class="card ins"><h2>What the data says</h2><ul id="ins"></ul></div>
+<footer>Source: Our World in Data, CO₂ and Greenhouse Gas Emissions dataset (github.com/owid/co2-data), based on the Global Carbon Project. Built by Dr. Zeeshan Rafi with Claude.</footer>
+</div>
+<script>
+const COL={"India":"#0f7c6c","China":"#c9761c","United States":"#3d6fb6","World":"#7a7a7a","European Union (27)":"#8b5cf6"};
+const LBL={"European Union (27)":"EU-27"};
+let D,sel=new Set(["India","China","World"]),line,bar;
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+D={"India":{"1990":{"pc":0.668,"tot":578.0,"coal":366.5,"oil":158.2,"gas":21.1,"cement":22.3,"flaring":9.9},"1991":{"pc":0.696,"tot":615.4,"coal":393.1,"oil":166.4,"gas":23.6,"cement":24.5,"flaring":7.8},"1992":{"pc":0.726,"tot":655.4,"coal":411.4,"oil":188.1,"gas":27.3,"cement":25.2,"flaring":3.6},"1993":{"pc":0.734,"tot":677.3,"coal":433.1,"oil":186.9,"gas":27.0,"cement":26.6,"flaring":3.7},"1994":{"pc":0.759,"tot":714.0,"coal":455.7,"oil":199.0,"gas":29.0,"cement":28.5,"flaring":1.9},"1995":{"pc":0.792,"tot":760.5,"coal":471.7,"oil":216.3,"gas":39.1,"cement":31.1,"flaring":2.3},"1996":{"pc":0.841,"tot":823.6,"coal":504.5,"oil":243.2,"gas":39.7,"cement":34.1,"flaring":2.1},"1997":{"pc":0.859,"tot":858.0,"coal":527.7,"oil":244.2,"gas":46.0,"cement":37.4,"flaring":2.6},"1998":{"pc":0.86,"tot":875.8,"coal":524.1,"oil":262.9,"gas":47.6,"cement":39.0,"flaring":2.1},"1999":{"pc":0.926,"tot":961.2,"coal":560.5,"oil":301.5,"gas":52.6,"cement":44.6,"flaring":2.0},"2000":{"pc":0.933,"tot":987.1,"coal":572.9,"oil":313.4,"gas":52.8,"cement":46.0,"flaring":2.0},"2001":{"pc":0.929,"tot":1001.2,"coal":582.1,"oil":317.4,"gas":53.1,"cement":46.7,"flaring":1.9},"2002":{"pc":0.941,"tot":1032.8,"coal":598.5,"oil":325.9,"gas":57.6,"cement":49.1,"flaring":1.6},"2003":{"pc":0.957,"tot":1068.4,"coal":625.8,"oil":331.3,"gas":58.6,"cement":50.9,"flaring":1.8},"2004":{"pc":0.999,"tot":1134.6,"coal":670.0,"oil":349.0,"gas":58.3,"cement":55.5,"flaring":1.8},"2005":{"pc":1.035,"tot":1195.4,"coal":721.5,"oil":353.1,"gas":59.4,"cement":59.7,"flaring":1.7},"2006":{"pc":1.103,"tot":1293.3,"coal":773.6,"oil":370.5,"gas":82.6,"cement":64.9,"flaring":1.7},"2007":{"pc":1.17,"tot":1393.5,"coal":842.5,"oil":392.8,"gas":88.0,"cement":68.3,"flaring":1.8},"2008":{"pc":1.234,"tot":1490.4,"coal":910.8,"oil":414.2,"gas":90.3,"cement":73.2,"flaring":1.9},"2009":{"pc":1.316,"tot":1613.3,"coal":983.9,"oil":433.8,"gas":112.5,"cement":81.3,"flaring":1.9},"2010":{"pc":1.35,"tot":1678.5,"coal":1016.0,"oil":440.7,"gas":134.1,"cement":86.0,"flaring":1.7},"2011":{"pc":1.4,"tot":1765.7,"coal":1074.4,"oil":461.4,"gas":136.0,"cement":91.3,"flaring":2.6},"2012":{"pc":1.507,"tot":1927.0,"coal":1206.5,"oil":491.1,"gas":125.6,"cement":100.2,"flaring":3.6},"2013":{"pc":1.54,"tot":1995.3,"coal":1276.4,"oil":498.3,"gas":109.6,"cement":107.8,"flaring":3.3},"2014":{"pc":1.637,"tot":2148.1,"coal":1407.1,"oil":513.8,"gas":107.8,"cement":115.8,"flaring":3.5},"2015":{"pc":1.681,"tot":2231.8,"coal":1449.6,"oil":557.5,"gas":103.1,"cement":117.5,"flaring":4.1},"2016":{"pc":1.75,"tot":2352.5,"coal":1499.4,"oil":616.1,"gas":110.0,"cement":123.3,"flaring":3.8},"2017":{"pc":1.784,"tot":2425.7,"coal":1551.3,"oil":634.1,"gas":116.5,"cement":121.0,"flaring":2.8},"2018":{"pc":1.888,"tot":2595.2,"coal":1668.3,"oil":658.7,"gas":126.7,"cement":139.0,"flaring":2.5},"2019":{"pc":1.88,"tot":2611.2,"coal":1661.9,"oil":677.9,"gas":125.2,"cement":143.7,"flaring":2.5},"2020":{"pc":1.727,"tot":2422.7,"coal":1561.8,"oil":607.5,"gas":127.7,"cement":122.9,"flaring":2.8},"2021":{"pc":1.892,"tot":2675.8,"coal":1767.3,"oil":623.5,"gas":133.2,"cement":149.0,"flaring":2.8},"2022":{"pc":1.986,"tot":2831.1,"coal":1855.9,"oil":684.0,"gas":124.0,"cement":164.3,"flaring":2.9},"2023":{"pc":2.13,"tot":3062.8,"coal":2032.0,"oil":718.2,"gas":132.4,"cement":177.2,"flaring":2.9},"2024":{"pc":2.201,"tot":3193.5,"coal":2108.0,"oil":747.3,"gas":149.4,"cement":186.0,"flaring":2.8}},"China":{"1990":{"pc":2.153},"1991":{"pc":2.237},"1992":{"pc":2.306},"1993":{"pc":2.434},"1994":{"pc":2.559},"1995":{"pc":2.747},"1996":{"pc":2.843},"1997":{"pc":2.83},"1998":{"pc":2.682},"1999":{"pc":2.817},"2000":{"pc":2.87},"2001":{"pc":2.912},"2002":{"pc":3.185},"2003":{"pc":3.735},"2004":{"pc":4.002},"2005":{"pc":4.49},"2006":{"pc":4.921},"2007":{"pc":5.261},"2008":{"pc":5.617},"2009":{"pc":5.871},"2010":{"pc":6.37},"2011":{"pc":6.999},"2012":{"pc":7.132},"2013":{"pc":7.21},"2014":{"pc":7.188},"2015":{"pc":7.061},"2016":{"pc":6.943},"2017":{"pc":7.08},"2018":{"pc":7.292},"2019":{"pc":7.526},"2020":{"pc":7.641},"2021":{"pc":7.911},"2022":{"pc":8.218},"2023":{"pc":8.556},"2024":{"pc":8.658}},"United States":{"1990":{"pc":20.254},"1991":{"pc":19.793},"1992":{"pc":19.949},"1993":{"pc":20.102},"1994":{"pc":20.197},"1995":{"pc":20.23},"1996":{"pc":20.679},"1997":{"pc":20.745},"1998":{"pc":20.775},"1999":{"pc":20.806},"2000":{"pc":21.398},"2001":{"pc":20.767},"2002":{"pc":20.718},"2003":{"pc":20.718},"2004":{"pc":20.874},"2005":{"pc":20.719},"2006":{"pc":20.237},"2007":{"pc":20.28},"2008":{"pc":19.409},"2009":{"pc":17.811},"2010":{"pc":18.225},"2011":{"pc":17.634},"2012":{"pc":16.812},"2013":{"pc":17.099},"2014":{"pc":17.119},"2015":{"pc":16.461},"2016":{"pc":15.935},"2017":{"pc":15.639},"2018":{"pc":16.001},"2019":{"pc":15.5},"2020":{"pc":13.817},"2021":{"pc":14.758},"2022":{"pc":14.802},"2023":{"pc":14.319},"2024":{"pc":14.197}},"World":{"1990":{"pc":4.267},"1991":{"pc":4.282},"1992":{"pc":4.09},"1993":{"pc":4.069},"1994":{"pc":4.048},"1995":{"pc":4.084},"1996":{"pc":4.148},"1997":{"pc":4.115},"1998":{"pc":4.045},"1999":{"pc":4.079},"2000":{"pc":4.134},"2001":{"pc":4.108},"2002":{"pc":4.144},"2003":{"pc":4.307},"2004":{"pc":4.399},"2005":{"pc":4.494},"2006":{"pc":4.586},"2007":{"pc":4.662},"2008":{"pc":4.683},"2009":{"pc":4.546},"2010":{"pc":4.745},"2011":{"pc":4.849},"2012":{"pc":4.854},"2013":{"pc":4.838},"2014":{"pc":4.805},"2015":{"pc":4.739},"2016":{"pc":4.682},"2017":{"pc":4.705},"2018":{"pc":4.752},"2019":{"pc":4.748},"2020":{"pc":4.458},"2021":{"pc":4.635},"2022":{"pc":4.678},"2023":{"pc":4.708},"2024":{"pc":4.729}},"European Union (27)":{"1990":{"pc":9.215},"1991":{"pc":9.028},"1992":{"pc":8.697},"1993":{"pc":8.508},"1994":{"pc":8.442},"1995":{"pc":8.538},"1996":{"pc":8.73},"1997":{"pc":8.565},"1998":{"pc":8.542},"1999":{"pc":8.409},"2000":{"pc":8.42},"2001":{"pc":8.533},"2002":{"pc":8.508},"2003":{"pc":8.66},"2004":{"pc":8.644},"2005":{"pc":8.595},"2006":{"pc":8.612},"2007":{"pc":8.471},"2008":{"pc":8.268},"2009":{"pc":7.575},"2010":{"pc":7.772},"2011":{"pc":7.537},"2012":{"pc":7.372},"2013":{"pc":7.18},"2014":{"pc":6.86},"2015":{"pc":6.972},"2016":{"pc":6.955},"2017":{"pc":6.997},"2018":{"pc":6.83},"2019":{"pc":6.493},"2020":{"pc":5.867},"2021":{"pc":6.257},"2022":{"pc":6.094},"2023":{"pc":5.514},"2024":{"pc":5.388}}};init();
+function years(){return Object.keys(D.India).sort()}
+function init(){
+ const c=document.getElementById("chips");
+ Object.keys(COL).forEach(k=>{const b=document.createElement("button");b.className="chip";b.textContent=LBL[k]||k;b.setAttribute("aria-pressed",sel.has(k));b.onclick=()=>{sel.has(k)?sel.delete(k):sel.add(k);if(!sel.size)sel.add(k);b.setAttribute("aria-pressed",sel.has(k));draw()};c.appendChild(b)});
+ document.getElementById("yr").oninput=e=>{document.getElementById("yrv").textContent=e.target.value;draw()};
+ Chart.defaults.color=css("--muted");Chart.defaults.borderColor=css("--line");
+ line=new Chart(document.getElementById("line"),{type:"line",data:{labels:years(),datasets:[]},options:{responsive:true,interaction:{mode:"index",intersect:false},plugins:{legend:{position:"bottom"}},elements:{point:{radius:0}},scales:{y:{beginAtZero:true}}}});
+ bar=new Chart(document.getElementById("bar"),{type:"bar",data:{labels:["Coal","Oil","Gas","Cement","Flaring"],datasets:[{data:[],backgroundColor:["#0f7c6c","#c9761c","#3d6fb6","#8b8b8b","#b45309"]}]},options:{indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}});
+ draw();
+}
+function draw(){
+ const y=document.getElementById("yr").value;
+ line.data.datasets=[...sel].map(k=>({label:LBL[k]||k,data:years().map(t=>D[k][t]?.pc),borderColor:COL[k],backgroundColor:COL[k],borderWidth:2.5,tension:.2}));line.update();
+ const i=D.India[y];bar.data.datasets[0].data=[i.coal,i.oil,i.gas,i.cement,i.flaring];bar.update();
+ document.getElementById("srcy").textContent="Million tonnes CO₂ in "+y;
+ const w=D.World[y],i90=D.India["1990"];
+ const k=[[i.pc.toFixed(2)+" t","India, CO₂ per person ("+y+")"],[w.pc.toFixed(2)+" t","World average ("+y+")"],[Math.round(i.pc/w.pc*100)+"%","India as share of world per-person level"],[(i.tot/i90.tot).toFixed(1)+"×","India total emissions vs 1990"]];
+ document.getElementById("kpis").innerHTML=k.map(([a,b])=>`<div class="kpi"><b>${a}</b><span>${b}</span></div>`).join("");
+ const coalShare=Math.round(i.coal/(i.coal+i.oil+i.gas+i.cement+i.flaring)*100);
+ const us=D["United States"][y],cn=D.China[y];
+ document.getElementById("ins").innerHTML=[
+  `In ${y}, the average person in India emitted <b>${i.pc.toFixed(2)} t</b> of CO₂, about <b>${Math.round(i.pc/w.pc*100)}%</b> of the world average (${w.pc.toFixed(2)} t).`,
+  `India's <b>total</b> emissions were ${(i.tot/i90.tot).toFixed(1)} times their 1990 level, but per person it is still far below China (${cn.pc.toFixed(2)} t) and the US (${us.pc.toFixed(2)} t).`,
+  `<b>Coal</b> made up about <b>${coalShare}%</b> of India's fossil and industry CO₂ in ${y}, so the energy mix matters more than any other single source.`
+ ].map(s=>`<li>${s}</li>`).join("");
+}
+</script></body></html>
